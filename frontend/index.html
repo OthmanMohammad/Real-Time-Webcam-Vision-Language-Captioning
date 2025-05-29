@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Webcam Captioning - AI Vision</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <meta name="description" content="Real-time AI-powered webcam captioning using SmolVLM. See what AI sees through your camera!">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎥 Real-Time Webcam Captioning</h1>
+            <p class="subtitle">Powered by SmolVLM AI - Describing what I see in real-time</p>
+        </header>
+
+        <main>
+            <!-- Video Section -->
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="canvas" style="display: none;"></canvas>
+                
+                <div class="controls">
+                    <button id="startBtn" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polygon points="10 8 16 12 10 16"></polygon>
+                        </svg>
+                        Start Camera
+                    </button>
+                    <button id="stopBtn" class="btn btn-secondary" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <rect x="9" y="9" width="6" height="6"></rect>
+                        </svg>
+                        Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Caption Display -->
+            <div class="caption-container">
+                <h2>🤖 AI Caption</h2>
+                <div id="captionBox" class="caption-box">
+                    <p id="captionText">Click "Start Camera" to begin real-time captioning...</p>
+                </div>
+                <div class="status-indicator">
+                    <span id="statusDot" class="status-dot"></span>
+                    <span id="statusText">Ready</span>
+                </div>
+            </div>
+
+            <!-- How it Works Section -->
+            <div class="info-section">
+                <h3>How It Works</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="info-icon">📷</div>
+                        <h4>Capture</h4>
+                        <p>Your webcam captures frames every 2 seconds</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">🧠</div>
+                        <h4>AI Processing</h4>
+                        <p>SmolVLM vision model analyzes and understands the image</p>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-icon">💬</div>
+                        <h4>Live Updates</h4>
+                        <p>Descriptions update automatically as the scene changes</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Built with ❤️ using FastAPI and SmolVLM | Open Source AI Project</p>
+        </footer>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
