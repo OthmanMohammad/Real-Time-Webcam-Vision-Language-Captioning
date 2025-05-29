@@ -1,6 +1,5 @@
 /**
  * Real-Time Webcam AI Vision Captioning Application
- * Frontend JavaScript Application
  */
 
 class WebcamCaptionApp {
@@ -10,15 +9,10 @@ class WebcamCaptionApp {
             // Camera elements
             webcam: document.getElementById('webcam'),
             canvas: document.getElementById('canvas'),
-            previewContainer: document.getElementById('preview-container'),
-            previewImage: document.getElementById('preview-image'),
             
             // Button elements
             startCameraBtn: document.getElementById('start-camera'),
-            capturePhotoBtn: document.getElementById('capture-photo'),
-            retakePhotoBtn: document.getElementById('retake-photo'),
-            getCaptionBtn: document.getElementById('get-caption'),
-            retryBtn: document.getElementById('retry-btn'),
+            stopCameraBtn: document.getElementById('stop-camera'),
             healthCheckBtn: document.getElementById('health-check'),
             
             // Display elements
@@ -31,6 +25,7 @@ class WebcamCaptionApp {
             resultStatus: document.getElementById('result-status'),
             errorDisplay: document.getElementById('error-display'),
             errorMessage: document.getElementById('error-message'),
+            retryBtn: document.getElementById('retry-btn'),
             
             // Loading overlay
             loadingOverlay: document.getElementById('loading-overlay'),
@@ -46,18 +41,21 @@ class WebcamCaptionApp {
         // App State
         this.state = {
             cameraActive: false,
-            photoTaken: false,
+            realtimeCaptioning: false,
             processing: false,
-            capturedImageBlob: null,
-            stream: null
+            stream: null,
+            captionInterval: null,
+            lastCaptionTime: 0
         };
         
-        // API Configuration - CONNECTS TO YOUR DIGITALOCEAN SERVER
+        // Configuration
         this.config = {
-            apiBaseUrl: 'http://64.226.106.221',  // Your DigitalOcean server IP
+            apiBaseUrl: 'http://64.226.106.221',
             maxRetries: 3,
             retryDelay: 1000,
-            healthCheckInterval: 30000 // Check system health every 30 seconds
+            healthCheckInterval: 30000,
+            captionInterval: 4000, // Generate caption every 4 seconds
+            minCaptionDelay: 2000   // Minimum delay between captions
         };
         
         // Initialize the application
@@ -68,19 +66,12 @@ class WebcamCaptionApp {
      * Initialize the application
      */
     async init() {
-        console.log('🚀 Initializing Webcam Caption App...');
+        console.log('🚀 Initializing Real-Time Webcam Caption App...');
         
-        // Bind event listeners
         this.bindEvents();
-        
-        // Check initial system health
         await this.checkSystemHealth();
-        
-        // Start periodic health checks
         this.startHealthMonitoring();
-        
-        // Set initial status
-        this.updateStatus('Ready to start camera', '📹');
+        this.updateStatus('Ready to start real-time captioning', '🎥');
         
         console.log('✅ App initialized successfully');
     }
@@ -89,32 +80,27 @@ class WebcamCaptionApp {
      * Bind all event listeners
      */
     bindEvents() {
-        // Camera controls
-        this.elements.startCameraBtn.addEventListener('click', () => this.startCamera());
-        this.elements.capturePhotoBtn.addEventListener('click', () => this.capturePhoto());
-        this.elements.retakePhotoBtn.addEventListener('click', () => this.retakePhoto());
-        this.elements.getCaptionBtn.addEventListener('click', () => this.getCaption());
-        
-        // Error handling
+        this.elements.startCameraBtn.addEventListener('click', () => this.startRealTimeCapturing());
+        this.elements.stopCameraBtn.addEventListener('click', () => this.stopRealTimeCapturing());
         this.elements.retryBtn.addEventListener('click', () => this.hideError());
-        
-        // System health check
         this.elements.healthCheckBtn.addEventListener('click', () => this.checkSystemHealth());
         
         // Handle browser tab visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
+                this.pauseRealTimeCapturing();
                 this.pauseHealthMonitoring();
             } else {
+                this.resumeRealTimeCapturing();
                 this.resumeHealthMonitoring();
             }
         });
     }
     
     /**
-     * Start the webcam
+     * Start real-time captioning
      */
-    async startCamera() {
+    async startRealTimeCapturing() {
         try {
             this.updateStatus('Starting camera...', '📹');
             
@@ -131,21 +117,28 @@ class WebcamCaptionApp {
             // Set video source
             this.elements.webcam.srcObject = this.state.stream;
             
-            // Update UI state
+            // Wait for video to be ready
+            await new Promise((resolve) => {
+                this.elements.webcam.addEventListener('loadedmetadata', resolve, { once: true });
+            });
+            
+            // Update UI
             this.state.cameraActive = true;
             this.elements.startCameraBtn.classList.add('hidden');
-            this.elements.capturePhotoBtn.classList.remove('hidden');
+            this.elements.stopCameraBtn.classList.remove('hidden');
             
-            this.updateStatus('Camera ready - click to capture photo', '📸');
+            // Start real-time captioning
+            this.startRealTimeCaptioning();
             
-            console.log('✅ Camera started successfully');
+            this.updateStatus('🔴 LIVE - Real-time AI captioning active', '🤖');
+            console.log('✅ Real-time captioning started');
             
         } catch (error) {
             console.error('❌ Camera access failed:', error);
             
             let errorMessage = 'Could not access camera. ';
             if (error.name === 'NotAllowedError') {
-                errorMessage += 'Please allow camera access and try again.';
+                errorMessage += 'Please allow camera access and refresh the page.';
             } else if (error.name === 'NotFoundError') {
                 errorMessage += 'No camera found on this device.';
             } else {
@@ -157,120 +150,159 @@ class WebcamCaptionApp {
     }
     
     /**
-     * Capture photo from webcam
+     * Stop real-time captioning
      */
-    capturePhoto() {
-        try {
-            const canvas = this.elements.canvas;
-            const video = this.elements.webcam;
-            const context = canvas.getContext('2d');
-            
-            // Set canvas dimensions to match video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // Draw video frame to canvas
-            context.drawImage(video, 0, 0);
-            
-            // Convert to blob
-            canvas.toBlob((blob) => {
-                this.state.capturedImageBlob = blob;
-                
-                // Create preview URL
-                const previewUrl = URL.createObjectURL(blob);
-                this.elements.previewImage.src = previewUrl;
-                
-                // Update UI
-                this.elements.webcam.classList.add('hidden');
-                this.elements.previewContainer.classList.remove('hidden');
-                this.elements.capturePhotoBtn.classList.add('hidden');
-                this.elements.retakePhotoBtn.classList.remove('hidden');
-                this.elements.getCaptionBtn.classList.remove('hidden');
-                
-                this.state.photoTaken = true;
-                this.updateStatus('Photo captured - get AI caption', '🤖');
-                
-                console.log('✅ Photo captured successfully');
-                
-            }, 'image/jpeg', 0.8);
-            
-        } catch (error) {
-            console.error('❌ Photo capture failed:', error);
-            this.showError('Capture Failed', 'Could not capture photo. Please try again.');
+    stopRealTimeCapturing() {
+        // Stop video stream
+        if (this.state.stream) {
+            this.state.stream.getTracks().forEach(track => track.stop());
+            this.state.stream = null;
         }
-    }
-    
-    /**
-     * Retake photo
-     */
-    retakePhoto() {
-        // Clean up previous image
-        if (this.state.capturedImageBlob) {
-            URL.revokeObjectURL(this.elements.previewImage.src);
-            this.state.capturedImageBlob = null;
-        }
+        
+        // Stop captioning interval
+        this.stopRealTimeCaptioning();
         
         // Reset UI
-        this.elements.previewContainer.classList.add('hidden');
-        this.elements.webcam.classList.remove('hidden');
-        this.elements.retakePhotoBtn.classList.add('hidden');
-        this.elements.getCaptionBtn.classList.add('hidden');
-        this.elements.capturePhotoBtn.classList.remove('hidden');
-        
-        // Hide previous results
+        this.state.cameraActive = false;
+        this.elements.startCameraBtn.classList.remove('hidden');
+        this.elements.stopCameraBtn.classList.add('hidden');
         this.elements.captionResult.classList.add('hidden');
-        this.hideError();
         
-        this.state.photoTaken = false;
-        this.updateStatus('Camera ready - click to capture photo', '📸');
+        this.updateStatus('Camera stopped - click to start again', '📹');
+        console.log('✅ Real-time captioning stopped');
     }
     
     /**
-     * Get AI caption for captured image
+     * Start the captioning interval
      */
-    async getCaption() {
-        if (!this.state.capturedImageBlob || this.state.processing) {
+    startRealTimeCaptioning() {
+        if (this.state.captionInterval) {
+            clearInterval(this.state.captionInterval);
+        }
+        
+        this.state.realtimeCaptioning = true;
+        
+        // Generate first caption immediately
+        setTimeout(() => this.captureAndAnalyze(), 1000);
+        
+        // Then continue every few seconds
+        this.state.captionInterval = setInterval(() => {
+            if (this.state.realtimeCaptioning && !this.state.processing) {
+                this.captureAndAnalyze();
+            }
+        }, this.config.captionInterval);
+        
+        console.log('🔄 Real-time captioning interval started');
+    }
+    
+    /**
+     * Stop the captioning interval
+     */
+    stopRealTimeCaptioning() {
+        this.state.realtimeCaptioning = false;
+        
+        if (this.state.captionInterval) {
+            clearInterval(this.state.captionInterval);
+            this.state.captionInterval = null;
+        }
+        
+        console.log('⏹️ Real-time captioning interval stopped');
+    }
+    
+    /**
+     * Pause real-time captioning (for tab visibility)
+     */
+    pauseRealTimeCapturing() {
+        if (this.state.realtimeCaptioning) {
+            this.stopRealTimeCaptioning();
+        }
+    }
+    
+    /**
+     * Resume real-time captioning (for tab visibility)
+     */
+    resumeRealTimeCapturing() {
+        if (this.state.cameraActive && !this.state.realtimeCaptioning) {
+            this.startRealTimeCaptioning();
+        }
+    }
+    
+    /**
+     * Capture current frame and analyze with AI
+     */
+    async captureAndAnalyze() {
+        // Throttle requests to avoid overwhelming the API
+        const now = Date.now();
+        if (now - this.state.lastCaptionTime < this.config.minCaptionDelay) {
             return;
         }
         
-        this.state.processing = true;
-        this.showLoading('AI is analyzing your image...', 'This may take 60-90 seconds if the AI is starting up');
+        if (this.state.processing || !this.state.cameraActive) {
+            return;
+        }
         
         try {
-            // Create form data
+            // Capture current frame
+            const imageBlob = await this.captureCurrentFrame();
+            if (!imageBlob) return;
+            
+            this.state.processing = true;
+            this.state.lastCaptionTime = now;
+            
+            // Show processing indicator in status
+            this.updateStatus('🔴 LIVE - Analyzing current view...', '🧠');
+            
+            // Send to AI
             const formData = new FormData();
-            formData.append('image', this.state.capturedImageBlob, 'webcam-capture.jpg');
+            formData.append('image', imageBlob, 'realtime-frame.jpg');
             
-            console.log('📤 Sending image to AI server...');
-            
-            // Send to backend API
             const response = await this.sendToAPI('/caption', {
                 method: 'POST',
                 body: formData
             });
             
-            console.log('📥 Received response:', response);
+            // Display result
+            this.displayCaption(response.caption, response.processing_time, response.status);
             
-            // Handle different response types
-            if (response.status === 'success') {
-                this.displayCaption(response.caption, response.processing_time || 0, 'success');
-            } else if (response.status === 'starting') {
-                this.displayCaption(response.caption, null, 'starting');
-                this.updateLoadingMessage('AI is starting up...', 'Please wait 60-90 seconds and try again');
-                setTimeout(() => this.hideLoading(), 3000);
-            } else if (response.status === 'budget_exceeded') {
-                this.displayCaption(response.caption, null, 'budget_exceeded');
-            } else {
-                this.displayCaption(response.caption || 'Processing...', response.processing_time, response.status);
-            }
+            // Update status back to live
+            this.updateStatus('🔴 LIVE - Real-time AI captioning active', '🤖');
             
         } catch (error) {
-            console.error('❌ Caption generation failed:', error);
-            this.showError('AI Processing Failed', error.message || 'Could not process image. Please try again.');
+            console.error('❌ Real-time caption failed:', error);
+            // Don't show error popup for individual frame failures, just log it
+            this.updateStatus('🔴 LIVE - Caption failed, retrying...', '⚠️');
         } finally {
             this.state.processing = false;
-            this.hideLoading();
         }
+    }
+    
+    /**
+     * Capture current video frame as blob
+     */
+    async captureCurrentFrame() {
+        return new Promise((resolve) => {
+            try {
+                const canvas = this.elements.canvas;
+                const video = this.elements.webcam;
+                const context = canvas.getContext('2d');
+                
+                // Set canvas size to match video
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Draw current video frame
+                context.drawImage(video, 0, 0);
+                
+                // Convert to blob
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.7); // Lower quality for faster processing
+                
+            } catch (error) {
+                console.error('Frame capture failed:', error);
+                resolve(null);
+            }
+        });
     }
     
     /**
@@ -286,14 +318,11 @@ class WebcamCaptionApp {
             }
         };
         
-        // Don't set Content-Type for FormData (browser sets it automatically)
         if (!(options.body instanceof FormData)) {
             defaultOptions.headers['Content-Type'] = 'application/json';
         }
         
         const finalOptions = { ...defaultOptions, ...options };
-        
-        console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
         
         let lastError;
         
@@ -307,12 +336,10 @@ class WebcamCaptionApp {
                 }
                 
                 const data = await response.json();
-                console.log(`✅ API Success (attempt ${attempt}):`, data);
                 return data;
                 
             } catch (error) {
                 lastError = error;
-                console.warn(`⚠️ API attempt ${attempt} failed:`, error.message);
                 
                 if (attempt < this.config.maxRetries) {
                     await this.sleep(this.config.retryDelay * attempt);
@@ -320,7 +347,7 @@ class WebcamCaptionApp {
             }
         }
         
-        throw new Error(`API request failed after ${this.config.maxRetries} attempts: ${lastError.message}`);
+        throw new Error(`API request failed: ${lastError.message}`);
     }
     
     /**
@@ -330,7 +357,6 @@ class WebcamCaptionApp {
         try {
             const health = await this.sendToAPI('/health');
             
-            // Update status displays
             this.elements.backendStatus.textContent = health.status || 'Unknown';
             this.elements.backendStatus.style.color = health.status === 'healthy' ? '#22c55e' : '#ef4444';
             
@@ -340,15 +366,66 @@ class WebcamCaptionApp {
             
             this.elements.queueStatus.textContent = health.queue_length || '0';
             
-            console.log('✅ System health check completed:', health);
-            
         } catch (error) {
-            console.warn('⚠️ System health check failed:', error);
+            console.warn('Health check failed:', error);
             this.elements.backendStatus.textContent = 'Offline';
             this.elements.backendStatus.style.color = '#ef4444';
             this.elements.gpuStatus.textContent = 'Unknown';
             this.elements.queueStatus.textContent = '?';
         }
+    }
+    
+    /**
+     * Display caption result
+     */
+    displayCaption(caption, processingTime, status) {
+        this.elements.captionText.textContent = caption;
+        
+        if (processingTime) {
+            this.elements.processingTime.textContent = `⏱️ ${processingTime}s`;
+        } else {
+            this.elements.processingTime.textContent = '';
+        }
+        
+        // Status indicator
+        const statusMap = {
+            'success': { text: '✅ Live', color: '#22c55e' },
+            'starting': { text: '🚀 Starting', color: '#f59e0b' },
+            'budget_exceeded': { text: '💰 Budget Limit', color: '#ef4444' },
+            'error': { text: '❌ Error', color: '#ef4444' }
+        };
+        
+        const statusInfo = statusMap[status] || { text: '📝 Processing', color: '#6b7280' };
+        this.elements.resultStatus.textContent = statusInfo.text;
+        this.elements.resultStatus.style.color = statusInfo.color;
+        
+        this.elements.captionResult.classList.remove('hidden');
+        this.hideError();
+    }
+    
+    /**
+     * Update status display
+     */
+    updateStatus(message, icon = '⏳') {
+        this.elements.statusText.textContent = message;
+        this.elements.statusIcon.textContent = icon;
+        this.elements.statusDisplay.classList.remove('hidden');
+    }
+    
+    /**
+     * Show error message
+     */
+    showError(title, message) {
+        document.querySelector('.error-title').textContent = title;
+        this.elements.errorMessage.textContent = message;
+        this.elements.errorDisplay.classList.remove('hidden');
+    }
+    
+    /**
+     * Hide error message
+     */
+    hideError() {
+        this.elements.errorDisplay.classList.add('hidden');
     }
     
     /**
@@ -377,88 +454,6 @@ class WebcamCaptionApp {
     }
     
     /**
-     * Display caption result
-     */
-    displayCaption(caption, processingTime, status) {
-        this.elements.captionText.textContent = caption;
-        
-        if (processingTime) {
-            this.elements.processingTime.textContent = `⏱️ ${processingTime}s`;
-        } else {
-            this.elements.processingTime.textContent = '';
-        }
-        
-        // Status indicator
-        const statusMap = {
-            'success': { text: '✅ Success', color: '#22c55e' },
-            'starting': { text: '🚀 Starting', color: '#f59e0b' },
-            'budget_exceeded': { text: '💰 Budget Limit', color: '#ef4444' },
-            'error': { text: '❌ Error', color: '#ef4444' }
-        };
-        
-        const statusInfo = statusMap[status] || { text: '📝 Processed', color: '#6b7280' };
-        this.elements.resultStatus.textContent = statusInfo.text;
-        this.elements.resultStatus.style.color = statusInfo.color;
-        
-        this.elements.captionResult.classList.remove('hidden');
-        this.hideError();
-    }
-    
-    /**
-     * Update status display
-     */
-    updateStatus(message, icon = '⏳') {
-        this.elements.statusText.textContent = message;
-        this.elements.statusIcon.textContent = icon;
-        this.elements.statusDisplay.classList.remove('hidden');
-    }
-    
-    /**
-     * Show loading overlay
-     */
-    showLoading(title, message) {
-        this.elements.loadingMessage.textContent = message;
-        document.querySelector('.loading-title').textContent = title;
-        this.elements.loadingOverlay.classList.remove('hidden');
-        
-        // Animate progress bar
-        this.elements.loadingBar.style.animation = 'progress 3s ease-in-out infinite';
-    }
-    
-    /**
-     * Update loading message
-     */
-    updateLoadingMessage(title, message) {
-        document.querySelector('.loading-title').textContent = title;
-        this.elements.loadingMessage.textContent = message;
-    }
-    
-    /**
-     * Hide loading overlay
-     */
-    hideLoading() {
-        this.elements.loadingOverlay.classList.add('hidden');
-        this.elements.loadingBar.style.animation = '';
-    }
-    
-    /**
-     * Show error message
-     */
-    showError(title, message) {
-        document.querySelector('.error-title').textContent = title;
-        this.elements.errorMessage.textContent = message;
-        this.elements.errorDisplay.classList.remove('hidden');
-        this.elements.captionResult.classList.add('hidden');
-    }
-    
-    /**
-     * Hide error message
-     */
-    hideError() {
-        this.elements.errorDisplay.classList.add('hidden');
-    }
-    
-    /**
      * Sleep utility function
      */
     sleep(ms) {
@@ -469,19 +464,10 @@ class WebcamCaptionApp {
      * Cleanup resources
      */
     cleanup() {
-        // Stop camera stream
-        if (this.state.stream) {
-            this.state.stream.getTracks().forEach(track => track.stop());
-        }
+        this.stopRealTimeCapturing();
         
-        // Clear intervals
         if (this.healthInterval) {
             clearInterval(this.healthInterval);
-        }
-        
-        // Revoke blob URLs
-        if (this.elements.previewImage.src) {
-            URL.revokeObjectURL(this.elements.previewImage.src);
         }
         
         console.log('🧹 App cleanup completed');
@@ -490,7 +476,7 @@ class WebcamCaptionApp {
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🎬 DOM loaded, starting app...');
+    console.log('🎬 DOM loaded, starting real-time app...');
     window.webcamApp = new WebcamCaptionApp();
 });
 
