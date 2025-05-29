@@ -50,7 +50,7 @@ class WebcamCaptionApp {
         
         // Configuration
         this.config = {
-            apiBaseUrl: 'http://64.226.106.221',
+            apiBaseUrl: 'http://localhost:5000',
             maxRetries: 3,
             retryDelay: 1000,
             healthCheckInterval: 30000,
