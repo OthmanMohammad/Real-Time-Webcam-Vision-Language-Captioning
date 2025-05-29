@@ -3,82 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Webcam Captioning - AI Vision</title>
+    <title>AI Webcam Caption - Real-time Scene Description</title>
+    <meta name="description" content="AI-powered real-time webcam captioning using SmolVLM. Get live descriptions of what your camera sees.">
+    
+    <!-- CSS -->
     <link rel="stylesheet" href="/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <meta name="description" content="Real-time AI-powered webcam captioning using SmolVLM. See what AI sees through your camera!">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎥</text></svg>">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎥 Real-Time Webcam Captioning</h1>
-            <p class="subtitle">Powered by SmolVLM AI - Describing what I see in real-time</p>
-        </header>
-
-        <main>
-            <!-- Video Section -->
-            <div class="video-container">
-                <video id="webcam" autoplay playsinline muted></video>
-                <canvas id="canvas" style="display: none;"></canvas>
-                
-                <div class="controls">
-                    <button id="startBtn" class="btn btn-primary">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polygon points="10 8 16 12 10 16"></polygon>
-                        </svg>
-                        Start Camera
-                    </button>
-                    <button id="stopBtn" class="btn btn-secondary" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <rect x="9" y="9" width="6" height="6"></rect>
-                        </svg>
-                        Stop
-                    </button>
-                </div>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>AI Caption Engine</h2>
+            <p id="loadingText">Initializing camera...</p>
+            <div class="loading-steps">
+                <div class="step" id="step1">📷 Camera Access</div>
+                <div class="step" id="step2">🤖 AI Model Ready</div>
+                <div class="step" id="step3">✨ Ready to Caption</div>
             </div>
-
-            <!-- Caption Display -->
-            <div class="caption-container">
-                <h2>🤖 AI Caption</h2>
-                <div id="captionBox" class="caption-box">
-                    <p id="captionText">Click "Start Camera" to begin real-time captioning...</p>
-                </div>
-                <div class="status-indicator">
-                    <span id="statusDot" class="status-dot"></span>
-                    <span id="statusText">Ready</span>
-                </div>
-            </div>
-
-            <!-- How it Works Section -->
-            <div class="info-section">
-                <h3>How It Works</h3>
-                <div class="info-grid">
-                    <div class="info-card">
-                        <div class="info-icon">📷</div>
-                        <h4>Capture</h4>
-                        <p>Your webcam captures frames every 2 seconds</p>
-                    </div>
-                    <div class="info-card">
-                        <div class="info-icon">🧠</div>
-                        <h4>AI Processing</h4>
-                        <p>SmolVLM vision model analyzes and understands the image</p>
-                    </div>
-                    <div class="info-card">
-                        <div class="info-icon">💬</div>
-                        <h4>Live Updates</h4>
-                        <p>Descriptions update automatically as the scene changes</p>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <footer>
-            <p>Built with ❤️ using FastAPI and SmolVLM | Open Source AI Project</p>
-        </footer>
+        </div>
     </div>
 
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">
+                <span class="logo-icon">🎥</span>
+                AI Vision Caption
+            </h1>
+            <div class="header-controls">
+                <button id="settingsBtn" class="btn btn-secondary" title="Settings">
+                    ⚙️
+                </button>
+                <button id="fullscreenBtn" class="btn btn-secondary" title="Fullscreen">
+                    🔍
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Camera Section -->
+            <section class="camera-section">
+                <div class="camera-container">
+                    <video 
+                        id="webcamVideo" 
+                        autoplay 
+                        playsinline 
+                        muted
+                        class="webcam-video"
+                    ></video>
+                    
+                    <!-- Video Overlay -->
+                    <div class="video-overlay">
+                        <div class="recording-indicator" id="recordingIndicator">
+                            <span class="recording-dot"></span>
+                            <span>LIVE</span>
+                        </div>
+                        
+                        <div class="video-controls">
+                            <button id="pauseBtn" class="control-btn" title="Pause/Resume">
+                                <span id="pauseIcon">⏸️</span>
+                            </button>
+                            <button id="captureBtn" class="control-btn" title="Capture Now">
+                                📸
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Status Messages -->
+                    <div id="cameraStatus" class="camera-status hidden">
+                        <div class="status-content">
+                            <div class="status-icon">📷</div>
+                            <h3>Camera Access Required</h3>
+                            <p>Please allow camera access to start captioning</p>
+                            <button id="retryCamera" class="btn btn-primary">Enable Camera</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Caption Section -->
+            <section class="caption-section">
+                <div class="caption-container">
+                    <div class="caption-header">
+                        <h2>
+                            <span class="caption-icon">🤖</span>
+                            Live Description
+                        </h2>
+                        <div class="caption-status">
+                            <span id="captionStatus" class="status-badge">Ready</span>
+                            <span id="updateTimer" class="update-timer">Next update in 2s</span>
+                        </div>
+                    </div>
+                    
+                    <div class="caption-content">
+                        <div id="captionText" class="caption-text">
+                            <div class="placeholder-text">
+                                <span class="typing-indicator">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </span>
+                                Analyzing scene...
+                            </div>
+                        </div>
+                        
+                        <div class="caption-history" id="captionHistory">
+                            <h3>Recent Descriptions</h3>
+                            <div class="history-list" id="historyList">
+                                <!-- History items will be added here -->
+                            </div>
+                            <button id="clearHistory" class="btn btn-ghost">Clear History</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Stats Section -->
+            <section class="stats-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalCaptions">0</div>
+                        <div class="stat-label">Captions Generated</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="avgResponseTime">0ms</div>
+                        <div class="stat-label">Avg Response Time</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="uptime">00:00</div>
+                        <div class="stat-label">Session Time</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button id="closeSettings" class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="updateInterval">Update Interval</label>
+                    <select id="updateInterval">
+                        <option value="1000">1 second</option>
+                        <option value="2000" selected>2 seconds</option>
+                        <option value="3000">3 seconds</option>
+                        <option value="5000">5 seconds</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="imageQuality">Image Quality</label>
+                    <select id="imageQuality">
+                        <option value="0.6">Low (Faster)</option>
+                        <option value="0.8" selected>Medium</option>
+                        <option value="1.0">High (Slower)</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoScroll" checked>
+                        Auto-scroll to new captions
+                    </label>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="soundEffects" checked>
+                        Sound effects
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="errorToast" class="toast error-toast hidden">
+        <div class="toast-content">
+            <span class="toast-icon">⚠️</span>
+            <span id="errorMessage">An error occurred</span>
+            <button id="closeError" class="toast-close">✕</button>
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="successToast" class="toast success-toast hidden">
+        <div class="toast-content">
+            <span class="toast-icon">✅</span>
+            <span id="successMessage">Success!</span>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>
+                Powered by <strong>SmolVLM</strong> • 
+                Built with <strong>FastAPI</strong> • 
+                <a href="/docs" target="_blank">API Docs</a>
+            </p>
+            <p class="footer-note">
+                Your camera feed is processed locally and not stored or transmitted beyond this session.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Hidden Canvas for Frame Capture -->
+    <canvas id="captureCanvas" style="display: none;"></canvas>
+
+    <!-- JavaScript -->
     <script src="/js/app.js"></script>
 </body>
 </html>
