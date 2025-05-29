@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmolVLM Test - Webcam AI Captioning</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .video-container {
+            position: relative;
+            max-width: 640px;
+            margin: 0 auto 2rem;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status {
+            background: rgba(255,255,255,0.2);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        .caption {
+            background: rgba(255,255,255,0.3);
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .caption-text {
+            font-size: 1.3rem;
+            font-weight: 500;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        .processing-indicator {
+            display: inline-block;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.6; }
+            to { opacity: 1; }
+        }
+        .progress-dots {
+            display: inline-block;
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+        .progress-dots::after {
+            content: '';
+        }
+        .processing-time {
+            background: rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        .hidden {
+            display: none;
+        }
+        .loading {
+            opacity: 0.7;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 SmolVLM Live Captioning Test</h1>
+        
+        <div class="status" id="status">
+            Ready to start webcam captioning
+        </div>
+        
+        <div class="video-container">
+            <video id="webcam" autoplay muted playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" onclick="startCamera()">📹 Start Camera</button>
+            <button id="captureBtn" onclick="captureAndCaption()" disabled>📸 Capture & Caption</button>
+            <button id="stopBtn" onclick="stopCamera()" disabled>⏹️ Stop Camera</button>
+        </div>
+        
+        <div class="caption" id="captionResult">
+            <div class="caption-text" id="captionText">Click "Start Camera" and then "Capture & Caption" to see AI-generated descriptions!</div>
+        </div>
+        
+        <div id="processingTime" class="processing-time hidden"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000';
+        let stream = null;
+        let isProcessing = false;
+
+        // DOM elements
+        const webcam = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const captionText = document.getElementById('captionText');
+        const processingTime = document.getElementById('processingTime');
+        const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        // Start camera
+        async function startCamera() {
+            try {
+                updateStatus('Starting camera...', '📹');
+                
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                
+                webcam.srcObject = stream;
+                
+                startBtn.disabled = true;
+                captureBtn.disabled = false;
+                stopBtn.disabled = false;
+                
+                updateStatus('Camera active - click "Capture & Caption" to analyze!', '✅');
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                updateStatus('Camera access failed. Please allow camera permissions.', '❌');
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            
+            webcam.srcObject = null;
+            
+            startBtn.disabled = false;
+            captureBtn.disabled = true;
+            stopBtn.disabled = true;
+            
+            updateStatus('Camera stopped', '⏹️');
+            captionText.textContent = 'Click "Start Camera" to begin again!';
+        }
+
+        // Capture image and get caption
+        async function captureAndCaption() {
+            if (isProcessing) return;
+            
+            try {
+                isProcessing = true;
+                captureBtn.disabled = true;
+                
+                updateStatus('Capturing image...', '📸');
+                
+                // Capture frame
+                canvas.width = webcam.videoWidth;
+                canvas.height = webcam.videoHeight;
+                ctx.drawImage(webcam, 0, 0);
+                
+                // Convert to blob
+                const blob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, 'image/jpeg', 0.8);
+                });
+                
+                updateStatus('Sending to AI for analysis... (this may take 30-60 seconds)', '🤖');
+                captionText.innerHTML = '<span class="processing-indicator">AI is analyzing your image<span class="progress-dots"></span></span><br><small>Please wait, this can take up to 60 seconds on CPU.</small>';
+                captionText.className = 'caption-text processing-indicator';
+                
+                // Send to backend with longer timeout
+                const formData = new FormData();
+                formData.append('file', blob, 'webcam-capture.jpg');
+                
+                const startTime = Date.now();
+                
+                // Create AbortController for manual timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 150000); // 2.5 minute timeout
+                
+                const response = await fetch(`${API_BASE}/caption`, {
+                    method: 'POST',
+                    body: formData,
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                const processingTimeMs = Date.now() - startTime;
+                
+                console.log('Backend response:', result);
+                
+                if (result.success) {
+                    captionText.className = 'caption-text';  // Reset styling
+                    captionText.textContent = result.caption;
+                    processingTime.textContent = `⏱️ Processed in ${Math.round(processingTimeMs/1000)}s`;
+                    processingTime.classList.remove('hidden');
+                    updateStatus('Caption generated successfully!', '✅');
+                } else {
+                    captionText.className = 'caption-text';  // Reset styling
+                    captionText.textContent = `Error: ${result.error || 'Unknown error'}`;
+                    updateStatus('Caption generation failed', '❌');
+                    console.error('Caption error:', result);
+                }
+                
+            } catch (error) {
+                console.error('Caption error:', error);
+                
+                captionText.className = 'caption-text';  // Reset styling
+                
+                if (error.name === 'AbortError') {
+                    captionText.textContent = 'Request timed out. AI processing took too long.';
+                    updateStatus('Request timed out', '⏱️');
+                } else {
+                    captionText.textContent = `Network error: ${error.message}`;
+                    updateStatus('Connection failed - is your backend running?', '❌');
+                }
+            } finally {
+                isProcessing = false;
+                captureBtn.disabled = false;
+            }
+        }
+
+        // Update status display
+        function updateStatus(message, icon) {
+            status.innerHTML = `${icon} ${message}`;
+        }
+
+        // Test backend connection on page load
+        async function testConnection() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const health = await response.json();
+                
+                if (health.backend === 'healthy' && health.gpu_worker.model_loaded) {
+                    updateStatus(`Connected to SmolVLM-500M! Ready to caption.`, '🚀');
+                } else {
+                    updateStatus('Backend connected but GPU worker not ready', '⚠️');
+                }
+                
+            } catch (error) {
+                updateStatus('Backend connection failed - make sure services are running', '❌');
+            }
+        }
+
+        // Initialize
+        testConnection();
+    </script>
+</body>
+</html>
