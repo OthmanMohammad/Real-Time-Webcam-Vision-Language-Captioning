@@ -49,7 +49,7 @@ class CaptionGenerator:
         
         # Performance optimization settings
         self.max_image_size = 384  # Smaller than default 512 for speed
-        self.max_new_tokens = 30   # Shorter captions for speed
+        self.max_new_tokens = 25   # Shorter captions for speed
         self.use_cache = True      # Enable KV cache for faster generation
         
         # Concurrent processing
@@ -109,14 +109,6 @@ class CaptionGenerator:
                 logger.info("Applying CPU optimizations...")
                 # Enable CPU optimizations
                 torch.set_num_threads(4)  # Limit threads to prevent oversubscription
-                
-                # Try to optimize with TorchScript (optional)
-                try:
-                    # This might not work for all models, so we wrap in try/except
-                    logger.info("Attempting TorchScript optimization...")
-                    # Note: This is experimental and might not work with all models
-                except Exception as e:
-                    logger.info(f"TorchScript optimization skipped: {e}")
             
             load_time = time.time() - start_time
             logger.info(f"✅ Model loaded in {load_time:.2f} seconds")
@@ -171,7 +163,7 @@ class CaptionGenerator:
     
     def generate_caption_sync(self, image: Image.Image) -> str:
         """
-        Optimized synchronous caption generation.
+        Optimized synchronous caption generation - FIXED TOKENIZATION.
         """
         try:
             start_time = time.time()
@@ -179,27 +171,25 @@ class CaptionGenerator:
             # Optimize image preprocessing
             optimized_image = self._optimize_image(image)
             
-            # Create efficient prompt
+            # Create efficient prompt - SIMPLIFIED for SmolVLM
             messages = [
                 {
                     "role": "user", 
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": "Briefly describe what you see."}  # Shorter prompt
+                        {"type": "text", "text": "Describe this image briefly."}  # Simple prompt
                     ]
                 }
             ]
             
             prompt = self.processor.apply_chat_template(messages, add_generation_prompt=True)
             
-            # Process inputs with optimizations
+            # FIXED: Process inputs WITHOUT truncation parameters that break SmolVLM
             inputs = self.processor(
                 images=[optimized_image],
                 text=prompt,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=512  # Limit input length
+                return_tensors="pt"
+                # Removed: padding, truncation, max_length - these break SmolVLM image processing
             ).to(self.device)
             
             # Generate with speed optimizations
@@ -210,13 +200,8 @@ class CaptionGenerator:
                 "early_stopping": True,      # Stop early when possible
                 "pad_token_id": self.processor.tokenizer.eos_token_id,
                 "use_cache": self.use_cache, # Enable KV cache
+                "temperature": 1.0,          # Stable generation
             }
-            
-            # Additional GPU optimizations
-            if self.device == "cuda":
-                generation_kwargs.update({
-                    "torch_dtype": torch.float16,
-                })
             
             with torch.no_grad():  # Disable gradients
                 # Use torch.cuda.amp for mixed precision on GPU
@@ -256,14 +241,8 @@ class CaptionGenerator:
             # Resize to optimal size for speed vs quality balance
             max_size = self.max_image_size
             if image.width > max_size or image.height > max_size:
-                # Use LANCZOS for good quality, but could use BILINEAR for even more speed
+                # Use LANCZOS for good quality
                 image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-            
-            # Optional: Apply slight sharpening to compensate for resizing
-            # This is commented out as it adds processing time
-            # from PIL import ImageEnhance
-            # enhancer = ImageEnhance.Sharpness(image)
-            # image = enhancer.enhance(1.1)
             
             return image
             
@@ -273,22 +252,26 @@ class CaptionGenerator:
     
     def _clean_caption(self, full_response: str, original_prompt: str) -> str:
         """
-        Fast caption cleaning - optimized for speed.
+        Fast caption cleaning - optimized for speed and SmolVLM format.
         """
         try:
-            # Quick cleaning approach
-            if "Assistant:" in full_response:
-                caption = full_response.split("Assistant:")[-1].strip()
-            else:
+            # Remove the original prompt from the response
+            if original_prompt in full_response:
                 caption = full_response.replace(original_prompt, "").strip()
+            else:
+                caption = full_response
+            
+            # Look for the assistant's response after "Assistant:"
+            if "Assistant:" in caption:
+                caption = caption.split("Assistant:")[-1].strip()
             
             # Remove common patterns quickly
             caption = re.sub(r'^(User:|Assistant:)\s*', '', caption)
-            caption = re.sub(r'<\|.*?\|>', '', caption)
-            caption = re.sub(r'\n+', ' ', caption)
+            caption = re.sub(r'<\|.*?\|>', '', caption)  # Remove special tokens
+            caption = re.sub(r'\n+', ' ', caption)  # Replace newlines with spaces
             caption = caption.strip()
             
-            # Quick fallback
+            # Quick fallback for empty results
             if not caption or len(caption) < 3:
                 caption = "Scene detected"
             
@@ -296,13 +279,13 @@ class CaptionGenerator:
             if not caption.endswith(('.', '!', '?')):
                 caption += '.'
             
-            # Capitalize
+            # Capitalize first letter
             if caption:
                 caption = caption[0].upper() + caption[1:]
             
-            # Limit length for speed
-            if len(caption) > 100:
-                caption = caption[:97] + "..."
+            # Limit length for speed (optional)
+            if len(caption) > 150:
+                caption = caption[:147] + "..."
             
             return caption
             
@@ -335,7 +318,8 @@ class CaptionGenerator:
             "max_new_tokens": self.max_new_tokens,
             "model_name": self.model_name,
             "optimizations_enabled": True,
-            "concurrent_processing": True
+            "concurrent_processing": True,
+            "tokenization_fixed": True  # Indicates the fix is applied
         }
     
     def update_settings(self, **kwargs):
