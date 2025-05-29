@@ -12,10 +12,10 @@
         <!-- Header -->
         <header class="header">
             <h1 class="title">
-                <span class="title-icon">📸</span>
-                AI Vision Captioning
+                <span class="title-icon">🎥</span>
+                Real-Time AI Vision
             </h1>
-            <p class="subtitle">Capture images with your webcam and get AI-powered descriptions</p>
+            <p class="subtitle">Live AI captions that update automatically as you move</p>
         </header>
 
         <!-- Main App -->
@@ -25,47 +25,38 @@
                 <div class="camera-container">
                     <video id="webcam" class="webcam-video" autoplay muted playsinline></video>
                     <canvas id="canvas" class="hidden"></canvas>
-                    <div id="preview-container" class="preview-container hidden">
-                        <img id="preview-image" class="preview-image" alt="Captured image">
-                    </div>
                 </div>
                 
                 <div class="camera-controls">
                     <button id="start-camera" class="btn btn-primary">
-                        <span class="btn-icon">📹</span>
-                        Start Camera
+                        <span class="btn-icon">🎥</span>
+                        Start Real-Time Captioning
                     </button>
-                    <button id="capture-photo" class="btn btn-secondary hidden">
-                        <span class="btn-icon">📸</span>
-                        Take Photo
-                    </button>
-                    <button id="retake-photo" class="btn btn-outline hidden">
-                        <span class="btn-icon">🔄</span>
-                        Retake
-                    </button>
-                    <button id="get-caption" class="btn btn-success hidden">
-                        <span class="btn-icon">🤖</span>
-                        Get AI Caption
+                    <button id="stop-camera" class="btn btn-secondary hidden">
+                        <span class="btn-icon">⏹️</span>
+                        Stop Captioning
                     </button>
                 </div>
             </section>
 
-            <!-- Results Section -->
+            <!-- Status Section -->
             <section class="results-section">
                 <div id="status-display" class="status-display hidden">
                     <div class="status-icon">⏳</div>
-                    <div class="status-text">Ready to capture</div>
+                    <div class="status-text">Ready to start</div>
                 </div>
 
+                <!-- Live Caption Display -->
                 <div id="caption-result" class="caption-result hidden">
-                    <h3 class="result-title">AI Caption:</h3>
-                    <p id="caption-text" class="caption-text"></p>
+                    <h3 class="result-title">🔴 Live Caption:</h3>
+                    <p id="caption-text" class="caption-text">Captions will appear here...</p>
                     <div class="result-meta">
                         <span id="processing-time" class="processing-time"></span>
                         <span id="result-status" class="result-status"></span>
                     </div>
                 </div>
 
+                <!-- Error Display -->
                 <div id="error-display" class="error-display hidden">
                     <div class="error-icon">⚠️</div>
                     <div class="error-content">
@@ -93,11 +84,25 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Instructions -->
+            <section class="instructions">
+                <div class="instruction-card">
+                    <h4>How Real-Time Captioning Works:</h4>
+                    <ol>
+                        <li>Click "Start Real-Time Captioning"</li>
+                        <li>Allow camera access when prompted</li>
+                        <li>AI will automatically analyze your video every 4 seconds</li>
+                        <li>Captions update automatically as you move or change</li>
+                        <li>No need to take photos - it's completely automatic!</li>
+                    </ol>
+                </div>
+            </section>
         </main>
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Powered by SmolVLM AI • Real-time image captioning</p>
+            <p>Powered by SmolVLM AI • Real-time continuous captioning</p>
             <div class="footer-links">
                 <a href="#" id="health-check">System Health</a>
                 <a href="http://64.226.106.221/docs" target="_blank">API Docs</a>
